@@ -1,0 +1,10 @@
+[package]
+name = 'wom'
+version = '1.0.0'
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'main'
+subdir = 'aptos-move/framework/aptos-framework'
+
+[addresses]
+wom_addr='e7bcb55e8554de9c2bbbf25a006cf8fab9fe94ef5c69e2a87bdbe53dc30bb46a'
