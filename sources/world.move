@@ -70,14 +70,14 @@ module wom_addr::world {
     const EWORLD_UNKNOWN: u64 = 1;
     const ECOMPONENT_TYPE_INVALID: u64 = 2;
 
-    struct Component<T: store> has store, copy, drop {
-        type: T,
+    struct Component<ComponentId: store> has store, copy, drop {
+        component_id: ComponentId,
         data: vector<u8>
     }
 
-    struct Entity<T: store> has store, copy, drop {
-        types: Option<Set<T>>,
-        components: Option<vector<Component<T>>>,
+    struct Entity<ComponentId: store> has store, copy, drop {
+        types: Option<Set<ComponentId>>,
+        components: Option<vector<Component<ComponentId>>>,
     }
 
     struct GenesisEvent has key {
@@ -88,22 +88,22 @@ module wom_addr::world {
         entity_id: u64,
     }
 
-    struct AddEvent<T> has key {
+    struct AddEvent<ComponentId> has key {
         entity_id: u64,
-        type: T,
+        component_id: ComponentId,
     }
 
-    struct World<T: store> has key {
-        entities: vector<Entity<T>>,
+    struct World<ComponentId: store> has key {
+        entities: vector<Entity<ComponentId>>,
         pool: vector<u64>,
         signer_capability: account::SignerCapability,
     }
 
     // Create a world to live in
-    public entry fun genesis<T: store>(creator: &signer, seed: vector<u8>) {
+    public entry fun genesis<ComponentId: store>(creator: &signer, seed: vector<u8>) {
         let (genesis_signer, signer_capability) = account::create_resource_account(creator, seed);
 
-        let world = World<T> {
+        let world = World<ComponentId> {
             entities: vector::empty(),
             pool: vector::empty(),
             signer_capability,
@@ -120,14 +120,14 @@ module wom_addr::world {
     }
 
     #[view]
-    public fun is_world<T: store>(world: address): bool {
-        exists<World<T>>(world)
+    public fun is_world<ComponentId: store>(world: address): bool {
+        exists<World<ComponentId>>(world)
     }
 
     #[view]
-    public fun is_entity<T: store>(world: address, entity_id: u64): bool acquires World {
-        if (is_world<T>(world)) {
-            let world = borrow_global<World<T>>(world);
+    public fun is_entity<ComponentId: store>(world: address, entity_id: u64): bool acquires World {
+        if (is_world<ComponentId>(world)) {
+            let world = borrow_global<World<ComponentId>>(world);
             if (entity_id > vector::length(&world.entities)) return false;
             option::is_some(&vector::borrow(&world.entities, entity_id).types)
         } else {
@@ -144,9 +144,9 @@ module wom_addr::world {
     }
 
     // Create entity in the world
-    public entry fun create<T: store>(signer: &signer, world: address) acquires World, CreateEvent {
-        assert!(exists<World<T>>(world), EWORLD_UNKNOWN);
-        let world = borrow_global_mut<World<T>>(world);
+    public entry fun create<ComponentId: store>(signer: &signer, world: address) acquires World, CreateEvent {
+        assert!(exists<World<ComponentId>>(world), EWORLD_UNKNOWN);
+        let world = borrow_global_mut<World<ComponentId>>(world);
         // Grab an entity that has been deleted and use the same slot
         let index = if (!vector::is_empty(&world.pool)) {
             let index = vector::pop_back(&mut world.pool);
@@ -173,50 +173,50 @@ module wom_addr::world {
     }
 
     // Add component to entity
-    public entry fun add<T: store + copy + drop>(signer: &signer, world: address, entity_id: u64, type: T, data: vector<u8>) acquires World, AddEvent {
-        assert!(exists<World<T>>(world), EWORLD_UNKNOWN);
+    public entry fun add<ComponentId: store + copy + drop>(signer: &signer, world: address, entity_id: u64, component_id: ComponentId, data: vector<u8>) acquires World, AddEvent {
+        assert!(exists<World<ComponentId>>(world), EWORLD_UNKNOWN);
         let index = entity_to_index(entity_id);
-        let world = borrow_global_mut<World<T>>(world);
+        let world = borrow_global_mut<World<ComponentId>>(world);
         let entity = vector::borrow_mut(&mut world.entities, index);
         if (option::is_none(&entity.types)) {
-            entity.types = option::some(set::empty<T>());
+            entity.types = option::some(set::empty<ComponentId>());
         };
         if (option::is_none(&entity.components)) {
-            entity.components = option::some(vector::empty<Component<T>>());
+            entity.components = option::some(vector::empty<Component<ComponentId>>());
         };
         // Register the new type in the entity, will abort if already registered
-        set::add(option::borrow_mut(&mut entity.types), &type);
-        vector::push_back(option::borrow_mut(&mut entity.components), Component<T> {
-            type,
+        set::add(option::borrow_mut(&mut entity.types), &component_id);
+        vector::push_back(option::borrow_mut(&mut entity.components), Component<ComponentId> {
+            component_id,
             data,
         });
 
-        if (exists<AddEvent<T>>(signer::address_of(signer))) {
-            let event = borrow_global_mut<AddEvent<T>>(signer::address_of(signer));
-            event.type = type;
+        if (exists<AddEvent<ComponentId>>(signer::address_of(signer))) {
+            let event = borrow_global_mut<AddEvent<ComponentId>>(signer::address_of(signer));
+            event.component_id = component_id;
             event.entity_id = index_to_entity(index);
         } else {
-            move_to(signer, AddEvent<T> {
+            move_to(signer, AddEvent<ComponentId> {
                 entity_id: index_to_entity(index),
-                type,
+                component_id,
             });
         }
     }
 
     // Providing a query of components we are interested in return a set of entity identities
     #[view]
-    public fun query<T: store + copy + drop>(world: address, mask: vector<T>) : vector<u64> acquires World {
-        assert!(exists<World<T>>(world), EWORLD_UNKNOWN);
-        let mask = set::from_vector<T>(mask);
-        let world = borrow_global_mut<World<T>>(world);
+    public fun query<ComponentId: store + copy + drop>(world: address, mask: vector<ComponentId>) : vector<u64> acquires World {
+        assert!(exists<World<ComponentId>>(world), EWORLD_UNKNOWN);
+        let mask = set::from_vector<ComponentId>(mask);
+        let world = borrow_global_mut<World<ComponentId>>(world);
         let found = vector::empty<u64>();
         let index = 0;
-        vector::for_each_ref<Entity<T>>(
+        vector::for_each_ref<Entity<ComponentId>>(
             &world.entities,
             |entity| {
-                let entity: &Entity<T> = entity;
-                let types = option::borrow<Set<T>>(&entity.types);
-                if (!vector::is_empty(set::borrow_data(&set::intersect<T>(types, &mask)))) {
+                let entity: &Entity<ComponentId> = entity;
+                let types = option::borrow<Set<ComponentId>>(&entity.types);
+                if (!vector::is_empty(set::borrow_data(&set::intersect<ComponentId>(types, &mask)))) {
                     vector::push_back(&mut found, index_to_entity(index));
                 };
                 index = index + 1;
@@ -226,10 +226,10 @@ module wom_addr::world {
     }
 
     // Destroy entity. The entity is cleared maintaining the slot in the vector and the index cached for reuse
-    public entry fun destroy<T: store>(world: address, entity_id: u64) acquires World {
-        assert!(exists<World<T>>(world), EWORLD_UNKNOWN);
+    public entry fun destroy<ComponentId: store>(world: address, entity_id: u64) acquires World {
+        assert!(exists<World<ComponentId>>(world), EWORLD_UNKNOWN);
         let index = entity_to_index(entity_id);
-        let world = borrow_global_mut<World<T>>(world);
+        let world = borrow_global_mut<World<ComponentId>>(world);
         // Clear slot
         vector::insert(&mut world.entities, index, Entity {
             types: option::none(),
@@ -270,12 +270,12 @@ module wom_addr::world {
         add(signer, genesis_event.genesis_addr, entity_id, component_id, b"speed component");
         let add_event = borrow_global<AddEvent<u8>>(signer::address_of(signer));
         assert!(add_event.entity_id == entity_id, 0);
-        assert!(add_event.type == component_id, 0);
+        assert!(add_event.component_id == component_id, 0);
         component_id = 2;
         add(signer, genesis_event.genesis_addr, entity_id, component_id, b"velocity component");
         let add_event = borrow_global<AddEvent<u8>>(signer::address_of(signer));
         assert!(add_event.entity_id == entity_id, 0);
-        assert!(add_event.type == component_id, 0);
+        assert!(add_event.component_id == component_id, 0);
     }
 
     #[test(signer = @0x1)]
