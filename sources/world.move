@@ -5,18 +5,18 @@ module wom_addr::set {
 
     const EVALUE_EXISTS: u64 = 1;
 
-    struct Set<Value> has copy, drop, store {
-        data: vector<Value>,
+    struct Set<Element> has copy, drop, store {
+        data: vector<Element>,
     }
 
-    public fun empty<Value>() : Set<Value> {
-        Set<Value> {
+    public fun empty<Element>() : Set<Element> {
+        Set<Element> {
             data: vector::empty(),
         }
     }
 
-    public fun from_vector<Value: drop + copy>(v: vector<Value>): Set<Value> {
-        let set = empty<Value>();
+    public fun from_vector<Element: drop + copy>(v: vector<Element>): Set<Element> {
+        let set = empty<Element>();
         vector::for_each_ref(&v, |value| {
             let (found, _) = vector::index_of(&set.data, value);
             if (!found) {
@@ -26,32 +26,32 @@ module wom_addr::set {
         set
     }
 
-    public fun value_exists<Value>(set: &Set<Value>, value: &Value): bool {
+    public fun value_exists<Element>(set: &Set<Element>, value: &Element): bool {
         let (found, _) = vector::index_of(&set.data, value);
         found
     }
 
-    public fun add<Value: copy>(set: &mut Set<Value>, value: &Value) {
+    public fun add<Element: copy>(set: &mut Set<Element>, value: &Element) {
         assert!(!value_exists(set, value), EVALUE_EXISTS);
         vector::push_back(&mut set.data, *value);
     }
 
-    public fun remove<Value: drop>(set: &mut Set<Value>, value: &Value) {
+    public fun remove<Element: drop>(set: &mut Set<Element>, value: &Element) {
         let (found, index) = vector::index_of(&set.data, value);
         assert!(found, EVALUE_EXISTS);
         vector::remove(&mut set.data, index);
     }
 
-    public fun borrow_data<Value>(set: &Set<Value>): &vector<Value> {
+    public fun borrow_data<Element>(set: &Set<Element>): &vector<Element> {
         &set.data
     }
 
-    public inline fun for_each_ref<Value>(set: &Set<Value>, f: |&Value|) {
+    public inline fun for_each_ref<Element>(set: &Set<Element>, f: |&Element|) {
         vector::for_each_ref(&set.data, |v| f(v));
     }
 
-    public fun intersect<Value: copy>(set_one: &Set<Value>, set_two: &Set<Value>): Set<Value> {
-        let intersection = empty<Value>();
+    public fun intersect<Element: copy>(set_one: &Set<Element>, set_two: &Set<Element>): Set<Element> {
+        let intersection = empty<Element>();
         for_each_ref(set_one, |value| {
             if (value_exists(set_two, value)) add(&mut intersection, value);
         });
