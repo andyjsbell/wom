@@ -66,8 +66,6 @@ module wom_addr::world {
     use std::signer;
     use std::option;
     use std::option::Option;
-    #[test_only]
-    use aptos_std::debug;
 
     const EWORLD_UNKNOWN: u64 = 1;
     const ECOMPONENT_TYPE_INVALID: u64 = 2;
@@ -218,7 +216,7 @@ module wom_addr::world {
             |entity| {
                 let entity: &Entity<T> = entity;
                 let types = option::borrow<Set<T>>(&entity.types);
-                if (vector::is_empty(set::borrow_data(&set::intersect<T>(types, &mask)))) {
+                if (!vector::is_empty(set::borrow_data(&set::intersect<T>(types, &mask)))) {
                     vector::push_back(&mut found, index_to_entity(index));
                 };
                 index = index + 1;
@@ -302,25 +300,21 @@ module wom_addr::world {
 
         // Query entities that have component 1
         {
-            let mask = vector::empty<u8>();
-            vector::push_back(&mut mask, component_one_id);
+            let mask = vector<u8>[component_one_id];
             let result = query(genesis_event.genesis_addr, mask);
 
             assert!(vector::length(&result) == 1, 0);
-            debug::print(&result);
             assert!(vector::borrow(&result, 0) == &first_entity, 0);
         };
 
         // Query entities that have component 2
         {
-            let mask = vector::empty<u8>();
-            vector::push_back(&mut mask, component_two_id);
+            let mask = vector<u8>[component_two_id];
             let result = query(genesis_event.genesis_addr, mask);
 
             assert!(vector::length(&result) == 2, 0);
-            debug::print(&result);
-            // assert!(vector::borrow(&result, 0) == &first_entity, 0);
-            // assert!(vector::borrow(&result, 1) == &second_entity, 0);
+            assert!(vector::borrow(&result, 0) == &first_entity, 0);
+            assert!(vector::borrow(&result, 1) == &second_entity, 0);
         };
     }
 }
